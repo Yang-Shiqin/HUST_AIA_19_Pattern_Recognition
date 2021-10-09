@@ -71,23 +71,23 @@ class LDA:
 
 
 ################################### test ######################################3
+if __name__=='__main__':
+    pos_x = torch.randn(200, 2)+torch.tensor([-5, 0])
+    neg_x = torch.randn(200, 2)+torch.tensor([0, 5])
+    x = torch.cat((pos_x, neg_x), dim=0)
+    N, d = pos_x.shape
+    train_pos_x = pos_x[:int(N*0.8)]
+    train_neg_x = neg_x[:int(N*0.8)]
+    test_pos_x = pos_x[int(N*0.8):]
+    test_neg_x = neg_x[int(N*0.8):]
 
-pos_x = torch.randn(200, 2)+torch.tensor([-5, 0])
-neg_x = torch.randn(200, 2)+torch.tensor([0, 5])
-x = torch.cat((pos_x, neg_x), dim=0)
-N, d = pos_x.shape
-train_pos_x = pos_x[:int(N*0.8)]
-train_neg_x = neg_x[:int(N*0.8)]
-test_pos_x = pos_x[int(N*0.8):]
-test_neg_x = neg_x[int(N*0.8):]
-
-model = LDA(x.shape[1])
-w, s = model.get_w2(train_pos_x, train_neg_x)
-rate1 = (sum(model.predict(train_pos_x)==1)+sum(model.predict(train_neg_x)==-1))/train_pos_x.shape[0]/2
-rate1 = max(rate1, 1-rate1)
-rate2 = (sum(model.predict(test_pos_x)==1)+sum(model.predict(test_neg_x)==-1))/test_pos_x.shape[0]/2
-rate2 = max(rate2, 1-rate2)
-print("train: correct rate: ", rate1)
-print("test: correct rate: ", rate2)
-model.draw(train_pos_x, train_neg_x, test_pos_x, test_neg_x)
-print("threshold: ", s)
+    model = LDA(x.shape[1])
+    w, s = model.get_w2(train_pos_x, train_neg_x)
+    rate1 = (sum(model.predict(train_pos_x)==1)+sum(model.predict(train_neg_x)==-1))/train_pos_x.shape[0]/2
+    rate1 = max(rate1, 1-rate1)
+    rate2 = (sum(model.predict(test_pos_x)==1)+sum(model.predict(test_neg_x)==-1))/test_pos_x.shape[0]/2
+    rate2 = max(rate2, 1-rate2)
+    print("train: correct rate: ", rate1)
+    print("test: correct rate: ", rate2)
+    model.draw(train_pos_x, train_neg_x, test_pos_x, test_neg_x)
+    print("threshold: ", s)
