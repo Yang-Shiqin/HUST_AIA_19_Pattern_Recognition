@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 import torch
+import cvxopt
 from cvxopt import matrix, solvers      # ATTENTION: matrix是转置的样子
 import random
 import matplotlib.pyplot as plt
@@ -46,7 +47,7 @@ class SVM_base:
             plt.plot(p_support[:, 0], p_support[:, 1], 'yo', markersize=15)
             plt.plot(n_support[:, 0], n_support[:, 1], 'yo', markersize=15)
         else:
-            support = x[(self.alpha).reshape(-1)>=1e-3]
+            support = x[(self.alpha).reshape(-1)>=1e-5]
             print("supporter: \n", support)
             plt.plot(support[:, 0], support[:, 1], 'yo', markersize=15)
         plt.plot(pos_x[:, 0], pos_x[:, 1], 'bo')
@@ -74,9 +75,9 @@ class Primal_SVM(SVM_base):
         x = torch.cat((torch.ones(N,1), x), dim=1)
         P = torch.eye(d+1)
         P[0][0] = 0
-        P = matrix(P.float().numpy().tolist())    # 必须转换为float
+        P = matrix(P.double().numpy().tolist())    # 必须转换为float
         q = matrix([0.]*(d+1))
-        G = matrix((-y*x).float().t().numpy().tolist())
+        G = matrix((-y*x).double().t().numpy().tolist())
         h = matrix([-1.]*N)
         A=None
         b=None
@@ -97,11 +98,11 @@ class Primal_SVM(SVM_base):
 class Dual_SVM(SVM_base):
     def QP(self, x, y):
         N, _ = x.shape
-        P = matrix((y.t()*(x@x.t())*y).float().t().numpy().tolist())    # 必须转换为float
+        P = matrix((y.t()*(x@x.t())*y).double().t().numpy().tolist())    # 必须转换为double
         q = matrix([-1.]*N)
-        G = matrix((-1*torch.eye(N)).float().numpy().tolist())
+        G = matrix((-1*torch.eye(N)).double().numpy().tolist())
         h = matrix([0.]*N)
-        A = matrix(y.float().numpy().tolist())
+        A = matrix(y.double().numpy().tolist())
         b = matrix([0.])
         result = solvers.qp(P,q,G,h,A,b)
         alpha = torch.tensor(list(result['x']))
@@ -118,48 +119,56 @@ class Dual_SVM(SVM_base):
         neg_x = x[y<=0]
         y = y.reshape(-1,1)
         # self.b = -(torch.max(neg_x@self.w)+torch.min(pos_x@self.w))/2
-        self.b = -(torch.max((neg_x@x.t()@(alpha*y)).t())+torch.min(pos_x@x.t()@(alpha*y)))/2
+        self.b = -(torch.max((neg_x@x.t()@(alpha*y)).t())+torch.min(pos_x@x.t()@(alpha*y)))/2   # 展开w, 方便kernel
         return [self.b, self.w]
 
 class Kernel_SVM(SVM_base):
     # type == gauss -> Gaussian kernel
     # type is a int -> Polynomial kernel
+    # '2'和'4'是固定参数多项式核(一般表达式拟合不了的常用参数)
     def K(self, x1, x2, method='gauss', beta1=1, beta2=1):
-        assert(method=='gauss' or isinstance(method,int) and method>0)
+        assert((method in['gauss', '2', '4']) or (isinstance(method,int) and method>0))
         if method=='gauss':
             xx1 = (x1*x1).sum(dim=1)
             xx2 = (x2*x2).sum(dim=1)
             z = 2*(x1@x2.t())-xx1.reshape(-1,1)-xx2.reshape(1,-1)
             return torch.exp(beta1*z)
+        elif method=='2':
+            return 1+x1@x2.t()+(x1@x2.t())**2
+        elif method=='4':
+            return 1+x1@x2.t()+0.01*(x1@x2.t())**4
         else:
             return (beta1*(x1@x2.t())+beta2)**method
 
     
     def QP(self, x, y):
         N, _ = x.shape
-        y = y.reshape(-1,1)
-        P = matrix((y.t()*(x)*y).float().t().numpy().tolist())    # 必须转换为float
+        y = y.reshape(-1,1).double()
+        x = x.double()
+        P = matrix((y.t()*(x)*y).t().numpy().tolist())    # 必须转换为float
         q = matrix([-1.]*N)
-        G = matrix((-1*torch.eye(N)).float().numpy().tolist())
+        G = matrix((-1*torch.eye(N)).double().numpy().tolist())
         h = matrix([0.]*N)
-        A = matrix(y.float().numpy().tolist())
+        A = matrix(y.numpy().tolist())
         b = matrix([0.])
         result = solvers.qp(P,q,G,h,A,b)
         alpha = torch.tensor(list(result['x']))
         return alpha
 
     def train(self, x, y, method='gauss', beta1=1, beta2=1):
+        self.method = method
+        self.beta1 = beta1
+        self.beta2 = beta2
         x = x.float()
         y = y.reshape(-1)
         pos_x = x[y==1]
         neg_x = x[y<=0]
         y = y.reshape(-1, 1).float()
         z = self.K(x, x, method, beta1, beta2)
-        print(x.shape, z.shape)
         alpha = self.QP(z, y).reshape(-1,1)
         self.alpha = alpha
-        # TODO: alpha!=0 -> 支撑向量 -> b=y[i]-(alpha*y).t()<x, 支撑向量>
-        self.b = -(torch.max((self.K(neg_x, x, method, beta1, beta2)@(alpha*y)).t())+torch.min(self.K(pos_x, x, method, beta1, beta2)@(alpha*y)))/2
+        self.b = -(torch.max((self.K(neg_x, x, method, beta1, beta2)@(alpha*y)).t())+\
+            torch.min(self.K(pos_x, x, method, beta1, beta2)@(alpha*y)))/2
         return alpha
 
     def plot(self, x, y, test_x=None, test_y=None, n=21):
@@ -189,14 +198,7 @@ class Kernel_SVM(SVM_base):
         yk = y[(self.alpha).reshape(-1)>=1e-5]
         self.support = self.alpha[self.alpha>=1e-5]
         xxx = torch.transpose(torch.transpose(torch.stack((X, Y),dim=0),0,2),1,0).reshape(-1,2)
-        f = 0
-        k = xk.shape[0]
-        for i in range(k):
-          f += ((self.support.reshape(1,-1)*yk.reshape(1,-1))@self.K(xk, xxx)).reshape(n,n)+self.b
-        f /= k
-        # for i in range(x.shape[0]):
-        #   f += ((self.alpha.reshape(1,-1)*y.reshape(1,-1))@self.K(x, xxx)).reshape(n,n)+self.b
-        # f /= x.shape[0]
+        f = ((self.alpha.reshape(1,-1)*y.reshape(1,-1))@self.K(x, xxx, self.method, self.beta1, self.beta2)).reshape(n,n)+self.b
         contour = plt.contourf(X, Y, f,levels=10, alpha=.75, cmap='coolwarm')
         CS = plt.contour(X, Y, f, linewidths=1, linestyles='dashed', levels=[-1, 0, 1], colors='k')
         plt.clabel(CS, inline=True)
@@ -205,37 +207,34 @@ class Kernel_SVM(SVM_base):
         support = xk
         self.support_x = support
         self.support_y = yk
+        print("supporter: \n", support)
         plt.plot(support[:, 0], support[:, 1], 'yo', markersize=10)
         plt.plot(pos_x[:, 0], pos_x[:, 1], 'ro', markersize=5)
         plt.plot(neg_x[:, 0], neg_x[:, 1], 'bx', markersize=5)
         plt.show()
-        # TODO: 画图
 
     def predict(self, x, y, test_x=None, test_y=None):
-        k = self.support_x.shape[0]
         yk = self.support_y
         xk = self.support_x
-        f=0
-        for i in range(k):
-          f += ((self.support.reshape(1,-1)*yk.reshape(1,-1))@self.K(xk, x))+self.b
-        f /= k
+        f = ((self.support.reshape(1,-1)*yk.reshape(1,-1))@self.K(xk, x, self.method, self.beta1, self.beta2))+self.b
         rate = sum(((f.squeeze()>0)==(y.squeeze()>0)).int())/x.shape[0]
         print("train: correct rate: ", rate)
         if test_x!=None:
-          f = 0
-          for i in range(k):
-            f += ((self.support.reshape(1,-1)*yk.reshape(1,-1))@self.K(xk, test_x))+self.b
-          f /= k
-          test_rate = sum((f>0==test_y>0).int())/test_x.shape[0]
-          print("test: correct rate: ", test_rate)
+            f = ((self.support.reshape(1,-1)*yk.reshape(1,-1))@self.K(xk, test_x, self.method, self.beta1, self.beta2))+self.b
+            test_rate = sum(((f.squeeze()>0)==(test_y.squeeze()>0)).int())/test_x.shape[0]
+            print("test: correct rate: ", test_rate)
 
 ################################## test ####################################
 if __name__=='__main__':
-    pos_x = torch.randn(200, 2)+torch.tensor([-5, 0])
-    neg_x = torch.randn(200, 2)+torch.tensor([0, 5])
+    solvers.options['show_progress'] = False    # 抑制输出
+
+    # 生成数据
+    N = 200
+    pos_x = torch.randn(N, 2)+torch.tensor([-5, 0])
+    neg_x = torch.randn(N, 2)+torch.tensor([0, 5])
     x = torch.cat((pos_x, neg_x), dim=0)
-    pos_y = torch.ones(200,)
-    neg_y = -torch.ones(200,)
+    pos_y = torch.ones(N,)
+    neg_y = -torch.ones(N,)
     y = torch.cat((pos_y, neg_y), dim=0)
     N, d = pos_x.shape
     idx = [i for i in range(2*N)]
@@ -257,12 +256,15 @@ if __name__=='__main__':
     # model.plot(train_x, train_y, test_x, test_y)
     # model.predict(train_x, train_y, test_x, test_y)
 
+    # Kernel_SVM
     model = Kernel_SVM()
-    model.train(train_x, train_y, beta1=0.5)
+    # model.train(train_x, train_y, method='2')       # 二次多项式核
+    model.train(train_x, train_y, method='gauss', beta1=0.1)    # gauss核
+    # model.train(train_x, train_y, method='4')       # 四次多项式核
     model.plot(train_x, train_y, test_x, test_y)
-    model.predict(pos_x, pos_y)
+    model.predict(train_x, train_y, test_x, test_y)
 
-
+################# test: 异或 ######################
     # x = torch.tensor([[2,2],
     #           [-2,-2],
     #           [2,-2],
