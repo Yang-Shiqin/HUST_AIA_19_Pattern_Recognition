@@ -57,16 +57,17 @@ class SVM_base:
     def predict(self, x, y, test_x=None, test_y=None):
         w = self.w.reshape(-1, 1)
         N = x.shape[0]
-        N2 = test_x.shape[0]
         y = y.reshape(-1)
         train = (x@w+self.b).reshape(-1)>0
         rate = sum(((train)==(y==1)).int())/N
         print("train correct rate: ", rate)
         if test_x!=None:
+            N2 = test_x.shape[0]
             test_y = test_y.reshape(-1)
             test = (test_x@w+self.b).reshape(-1)>0
             test_rate = sum(((test)==(test_y==1)).int())/N2
             print("test correct rate: ", test_rate)
+        return train
         
 
 class Primal_SVM(SVM_base):
@@ -224,7 +225,7 @@ class Kernel_SVM(SVM_base):
             test_rate = sum(((f.squeeze()>0)==(test_y.squeeze()>0)).int())/test_x.shape[0]
             print("test: correct rate: ", test_rate)
 
-################################## test ####################################
+################################## test1 ####################################
 if __name__=='__main__':
     solvers.options['show_progress'] = False    # 抑制输出
 
@@ -242,19 +243,19 @@ if __name__=='__main__':
     train_x, train_y = x[idx[:int(2*N*0.8)]], y[idx[:int(2*N*0.8)]]
     test_x, test_y = x[idx[int(2*N*0.8):]], y[idx[int(2*N*0.8):]]
     
-    # # Primal_SVM
-    # model = Primal_SVM()
-    # b, w = model.train(train_x, train_y)
-    # print("b: ", b, ", w: ", w.reshape(-1))
-    # model.plot(train_x, train_y, test_x, test_y)
-    # model.predict(train_x, train_y, test_x, test_y)
+    # Primal_SVM
+    model = Primal_SVM()
+    b, w = model.train(train_x, train_y)
+    print("b: ", b, ", w: ", w.reshape(-1))
+    model.plot(train_x, train_y, test_x, test_y)
+    model.predict(train_x, train_y, test_x, test_y)
 
-    # # Dual_SVM
-    # model = Dual_SVM()
-    # b, w = model.train(train_x, train_y)
-    # print("b: ", b, ", w: ", w.reshape(-1))
-    # model.plot(train_x, train_y, test_x, test_y)
-    # model.predict(train_x, train_y, test_x, test_y)
+    # Dual_SVM
+    model = Dual_SVM()
+    b, w = model.train(train_x, train_y)
+    print("b: ", b, ", w: ", w.reshape(-1))
+    model.plot(train_x, train_y, test_x, test_y)
+    model.predict(train_x, train_y, test_x, test_y)
 
     # Kernel_SVM
     model = Kernel_SVM()
@@ -263,6 +264,48 @@ if __name__=='__main__':
     # model.train(train_x, train_y, method='4')       # 四次多项式核
     model.plot(train_x, train_y, test_x, test_y)
     model.predict(train_x, train_y, test_x, test_y)
+
+####################### test2 ############################
+    china_sea=torch.tensor([[119.28,26.08],         # 福州
+                            [121.31,25.03],         # 台北
+                            [121.47,31.23],         # 上海
+                            [118.06,24.27],         # 厦门
+                            [121.46,39.04],         # 大连
+                            [122.10,37.50],         # 威海
+                            [124.23,40.07]])        # 丹东
+ 
+    j_sea=torch.tensor([    [129.87,32.75],         # 长崎
+                            [130.33,31.36],         # 鹿儿岛
+                            [131.42,31.91],         # 宫崎
+                            [130.24,33.35],         # 福冈
+                            [133.33,15.43],         # 鸟取
+                            [138.38,34.98],         # 静冈
+                            [140.47,36.37]])        # 水户   
+
+    china_land=torch.tensor([[113.53,29.58],        # 武汉
+                            [104.06,30.67],         # 成都
+                            [116.25,39.54]])        # 北京
+
+    j_land=torch.tensor([   [136.54,35.10],         # 名古屋
+                            [132.27,34.24],         # 广岛
+                            [139.46,35.42]])        # 东京
+
+    Diaoyu = torch.tensor([123.28,25.45]).reshape(1, 2)
+    # q1
+    train_x = torch.cat((china_sea, j_sea), dim=0)
+    train_y = torch.cat((torch.ones(china_sea.shape[0]), -torch.ones(j_sea.shape[0])), dim=0)
+    model = Dual_SVM()
+    b, w = model.train(train_x, train_y)
+    model.plot(train_x, train_y, Diaoyu, torch.ones(1))
+    train = model.predict(Diaoyu, torch.ones(1))
+
+    #q2
+    train_x = torch.cat((china_sea, china_land, j_sea, j_land), dim=0)
+    train_y = torch.cat((torch.ones(china_sea.shape[0]+china_land.shape[0]), -torch.ones(j_sea.shape[0]+j_land.shape[0])), dim=0)
+    model = Dual_SVM()
+    b, w = model.train(train_x, train_y)
+    model.plot(train_x, train_y, Diaoyu, torch.ones(1))
+    train = model.predict(Diaoyu, torch.ones(1))
 
 ################# test: 异或 ######################
     # x = torch.tensor([[2,2],
