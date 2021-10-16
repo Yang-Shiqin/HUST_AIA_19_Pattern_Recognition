@@ -9,21 +9,34 @@ from helper import load_mnist, train
 
 plt.rcParams['image.cmap'] = 'gray'
 
-class SoftClassify(nn.Module):
+
+class LeNet(nn.Module):
     # dim_in: 数据维数
     # C: 分类数
-    def __init__(self, dim_in, C):
+    # dim_h: 隐藏层神经元个数
+    # 至少2层
+    def __init__(self, C, H, W) -> None:
         super().__init__()
+        assert(C==1)
         self.net = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=6, kernel_size=5, stride=1, padding=2),
+            nn.AvgPool2d(kernel_size=2, stride=2, padding=0),
+            nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1, padding=0),
+            nn.Sigmoid(),
+            nn.AvgPool2d(kernel_size=2, stride=2, padding=0),
             nn.Flatten(),
-            nn.Linear(dim_in, C),
-            nn.ReLU(),
+            nn.Linear(int(16*(H/4-2)*(W/4-2)), 120),
+            nn.Sigmoid(),
+            nn.Linear(120, 84),
+            nn.Sigmoid(),
+            nn.Linear(84, 10),
             nn.Softmax()
         )
+        # 初始化策略
         for m in self.modules():
             if isinstance(m, nn.Linear):
-                # nn.init.xavier_normal_(m.weight)
-                nn.init.normal_(m.weight, mean=0.0, std=0.01)
+                nn.init.xavier_normal_(m.weight)
+                # nn.init.normal_(m.weight, mean=0.0, std=0.01)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -36,7 +49,7 @@ class SoftClassify(nn.Module):
         return score
 
 
-
+# 抽样展示预测效果
 def show_mnist_sample(model, loader, batch_size=64, num=10, row=5):
     if loader.dataset.train:
         print('show random sample on train set')
@@ -71,16 +84,15 @@ def myshow(acc_history, acc_test_history, loss_history, iter_history):
 ################## test ##################
 if __name__ == '__main__':
     loader_train, loader_test = load_mnist(batch_size=256)  # 64效果比256好很多
+    _, H, W = loader_train.dataset.data.shape
 
-    dim_in = 784
-    C = 10
-    learning_rate = 0.1
+    learning_rate = 0.2
     momentum = 0.5
 
-    model = SoftClassify(dim_in, C)
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-    # optimizer = optim.SGD(model.parameters(), lr=learning_rate, 
-    #                       momentum=momentum, nesterov=True)
+    model = LeNet(1, H, W)
+    # optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    optimizer = optim.SGD(model.parameters(), lr=learning_rate, 
+                          momentum=momentum, nesterov=True)
 
     acc_history, acc_test_history, loss_history, iter_history = train(model, loader_train, loader_test, optimizer, epoch=10)
     myshow(acc_history, acc_test_history, loss_history, iter_history)
