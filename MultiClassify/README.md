@@ -1,0 +1,6 @@
+- helper: load_mnist, 计算accuracy, train模型
+- iris.py: 用ovo和softmax在iris数据集上分类(第一道编程题入口)
+- MulClassify.py: 实现softmax多分类(第二道编程题入口)
+- Pocket.py: 辅助iris.py的感知机模型
+- README.md: this file
+- softmax.py: 非编程作业编程计算(因为梯度更新太难算了)

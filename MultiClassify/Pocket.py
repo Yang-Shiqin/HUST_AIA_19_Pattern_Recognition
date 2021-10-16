@@ -14,11 +14,14 @@ class Pocket():
             M, _ = test_x.shape
             self.test_x = torch.cat((torch.ones(M).reshape(M, 1), test_x), dim=1)
 
-    def result(self, is_print="True", is_draw="True"):
-        rate = self.update(is_print)
-        if is_draw:
+    def result(self, update_time=10, is_print="True", is_draw="True", short=True):
+        if short:
+            rate = self.update(update_time, is_print="False")
+        else:
+            rate = self.update(update_time, is_print)
+        if is_draw=="True":
             self.draw2D('train')
-        if is_print:
+        if is_print=="True":
             print("train: correct rate: ", float(rate), ", w: ", self.w)
         if self.test_x == None:
             return [self.w, rate]
@@ -26,7 +29,7 @@ class Pocket():
             test_rate = self.test(is_print, is_draw)
             return [self.w, rate, test_rate]
     
-    def update(self, update_time, is_print="True"):
+    def update(self, update_time=10, is_print="True"):
         N, _ = self.x.shape
         it = 0
         my_teg = torch.sign(torch.mv(self.x, self.w))
@@ -40,13 +43,13 @@ class Pocket():
             w += self.tag[choose_one]*self.x[choose_one]
             tmp_teg = torch.sign(torch.mv(self.x, w))
             err_num = sum((tmp_teg!=self.tag).int())
-            if is_print:
+            if is_print=="True":
                 print("times: ", it, ", correct rate: ", float(1-err_num/N))
             it+=1
             if err_num<min_num:
                 min_num = err_num
                 self.w = w
-                if is_print:
+                if is_print=="True":
                     print("new w: ", w)
         return 1-min_num/N
 
@@ -78,10 +81,10 @@ class Pocket():
     def test(self, is_print="True", is_draw="True"):
         N, _ = self.test_x.shape
         tag = torch.sign(torch.mv(self.test_x, self.w))
-        if is_draw:
+        if is_draw=="True":
             self.draw2D('test', tag)
         err = sum((tag!=self.test_tag).int())
         rate = 1-err/N
-        if is_print:
+        if is_print=="True":
             print("test: correct rate: ", float(rate))
         return rate
