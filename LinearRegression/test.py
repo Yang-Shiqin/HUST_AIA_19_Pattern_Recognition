@@ -1,6 +1,6 @@
 import torch
 import random
-# from LinearRegression import LinearRegression
+from LinearRegression import LinearRegression
 
 pos_x = torch.randn(200, 2)+torch.tensor([-5, 0])
 neg_x = torch.randn(200, 2)+torch.tensor([0, 5])

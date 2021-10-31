@@ -3,6 +3,8 @@ from Pocket import Pocket
 import torch
 import time
 
+# 非线性可分pla会死循环
+
 # test1
 x = torch.tensor([  [0.2, 0.7], 
                     [0.3, 0.3], 
@@ -20,7 +22,6 @@ model.result(20)
 
 
 # test2
-import time
 x1 = torch.randn(200, 2)+torch.tensor([-5, 0])
 x2 = torch.randn(200, 2)+torch.tensor([0, -5])
 train_num = int(200*0.8)
