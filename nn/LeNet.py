@@ -33,7 +33,7 @@ class LeNet(nn.Module):
             nn.Softmax()
         )
         # 初始化策略
-        for m in self.modules():
+        for m in self.net():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_normal_(m.weight)
                 # nn.init.normal_(m.weight, mean=0.0, std=0.01)

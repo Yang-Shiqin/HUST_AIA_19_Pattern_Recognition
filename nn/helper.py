@@ -34,6 +34,9 @@ def acc(loader, model):
     model.eval()
     with torch.no_grad():
         for x, y in loader:
+            # to avoid error, ensure that x(input) is float, y(target) is long
+            # and call loss on model output and y without any typecasting
+            x=x.float()
             y=y.long()
             scores = model(x)
             _, pred_y = scores.max(1)
@@ -52,6 +55,9 @@ def train(model, loader_train, loader_test, optimizer, epoch=1):
     for e in range(epoch):
         for t, (x, y) in enumerate(loader_train):
             model.train()
+
+            # to avoid error, ensure that x(input) is float, y(target) is long
+            # and call loss on model output and y without any typecasting
             x = x.float()
             y = y.long()
             score = model(x)
